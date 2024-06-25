@@ -1,0 +1,49 @@
+name: Rebaseline Feature Branch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rebaseline:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Git
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+    - name: Pull latest changes from main
+      run: |
+        git checkout main
+        git pull origin main
+
+    - name: Create and checkout rebaseline branch
+      run: |
+        git checkout -b rebaseline-branch
+
+    - name: Rebase feature branch onto main
+      run: |
+        git checkout feature-branch
+        git rebase main || (git rebase --abort && exit 1)
+
+    - name: Resolve conflicts and continue rebase
+      if: failure()
+      run: |
+        CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
+        for FILE in $CONFLICT_FILES; do
+          git checkout --theirs $FILE
+          git add $FILE
+        done
+        git rebase --continue || (git rebase --abort && exit 1)
+
+    - name: Push changes
+      run: git push origin feature-branch --force
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
